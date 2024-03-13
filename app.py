@@ -4,7 +4,7 @@ import csv
 import copy
 import argparse
 import itertools
-from collections import Counter
+#from collections import Counter
 from collections import deque
 
 import cv2 as cv
@@ -24,6 +24,7 @@ import threading
 
 ##
 
+# Get Window details height / width etc 
 def get_args():
     parser = argparse.ArgumentParser()
 
@@ -45,9 +46,8 @@ def get_args():
 
     return args
 
-
+# Global Shared Variable
 SHOW_FACE_MASK = False
-
 
 def speech_recognition_task():
     # ### SPEECH
@@ -94,9 +94,7 @@ speech_thread.start()
 
 def main():
 
-    
-
-
+  
     # 引数解析 #################################################################
     args = get_args()
 
@@ -130,7 +128,6 @@ def main():
 
     keypoint_classifier = KeyPointClassifier()
 
-    point_history_classifier = PointHistoryClassifier()
 
     # ラベル読み込み ###########################################################
     with open('model/keypoint_classifier/keypoint_classifier_label.csv',
@@ -138,13 +135,6 @@ def main():
         keypoint_classifier_labels = csv.reader(f)
         keypoint_classifier_labels = [
             row[0] for row in keypoint_classifier_labels
-        ]
-    with open(
-            'model/point_history_classifier/point_history_classifier_label.csv',
-            encoding='utf-8-sig') as f:
-        point_history_classifier_labels = csv.reader(f)
-        point_history_classifier_labels = [
-            row[0] for row in point_history_classifier_labels
         ]
 
     # FPS計測モジュール ########################################################
@@ -154,14 +144,13 @@ def main():
     history_length = 16
     point_history = deque(maxlen=history_length)
 
-    # フィンガージェスチャー履歴 ################################################
-    finger_gesture_history = deque(maxlen=history_length)
 
     #  ########################################################################
     mode = 0
 
+
+    # MAIN LOOP
     while True:
-       
 
         # キー処理(ESC：終了) #################################################
         key = cv.waitKey(10)
@@ -202,9 +191,6 @@ def main():
                         landmark_drawing_spec=mp.solutions.drawing_utils.DrawingSpec(color=(255,0,255)),
                         connection_drawing_spec=mp_drawing_styles
                         .get_default_face_mesh_contours_style())
-
-            
-
 
         #  ####################################################################
         if results.multi_hand_landmarks is not None:
@@ -256,13 +242,6 @@ def main():
 
     cap.release()
     cv.destroyAllWindows()
-
-
-
-
-
-
-
 
 
 
@@ -620,6 +599,6 @@ def draw_info(image, mode, number):
 
 
 
-
+# For running this file from def main
 if __name__ == '__main__':
     main()
