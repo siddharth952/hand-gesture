@@ -11,10 +11,18 @@ import cv2 as cv
 import numpy as np
 import mediapipe as mp
 
-from utils import CvFpsCalc
+# from utils import CvFpsCalc
 from model import KeyPointClassifier
 from model import PointHistoryClassifier
 
+
+# ##For Speech
+import speech_recognition
+import pyttsx3
+
+import threading
+
+##
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -38,7 +46,64 @@ def get_args():
     return args
 
 
+SHOW_FACE_MASK = False
+
+
+def speech_recognition_task():
+    while True:
+        if SHOW_FACE_MASK:
+            print("Speech")
+            with speech_recognition.Microphone() as mic:
+                recognizer.adjust_for_ambient_noise(mic, duration=0.5)
+                audio = recognizer.listen(mic)
+                text = recognizer.recognize_sphinx(audio)
+                    
+                print("Recognized ")
+                print(text)
+
+                if text != "":
+                    speechDetected()
+
+# This method controls the masking of users face
+def toggle_user_mask(to_val):
+    global SHOW_FACE_MASK  # Declare SHOW_FACE_MASK as global
+    SHOW_FACE_MASK = to_val
+
+
+# This method controls the logic when runs when open palm is detected
+def openPalm():
+    print("Open Palm Detected")
+    toggle_user_mask(True)
+
+def speechDetected():
+    print("Speech was detected")
+    toggle_user_mask(False)
+
+
+# Start speech recognition thread
+speech_thread = threading.Thread(target=speech_recognition_task)
+speech_thread.daemon = True  # Daemonize the thread to terminate it when the main program exits
+speech_thread.start()
+
+
 def main():
+
+    
+
+
+        
+
+    # ### SPEECH
+        # Recognizer - Obj that it going to make it understands which we are saying
+    recognizer = speech_recognition.Recognizer()
+    
+    # ### SPEECH END
+
+
+
+
+
+
     # 引数解析 #################################################################
     args = get_args()
 
@@ -66,6 +131,10 @@ def main():
         min_tracking_confidence=min_tracking_confidence,
     )
 
+    # MP FACE
+    mp_face_mesh = mp.solutions.face_mesh
+    face = mp_face_mesh.FaceMesh()
+
     keypoint_classifier = KeyPointClassifier()
 
     point_history_classifier = PointHistoryClassifier()
@@ -86,7 +155,7 @@ def main():
         ]
 
     # FPS計測モジュール ########################################################
-    cvFpsCalc = CvFpsCalc(buffer_len=10)
+    # cvFpsCalc = CvFpsCalc(buffer_len=10)
 
     # 座標履歴 #################################################################
     history_length = 16
@@ -99,7 +168,7 @@ def main():
     mode = 0
 
     while True:
-        fps = cvFpsCalc.get()
+       
 
         # キー処理(ESC：終了) #################################################
         key = cv.waitKey(10)
@@ -109,6 +178,7 @@ def main():
 
         # カメラキャプチャ #####################################################
         ret, image = cap.read()
+
         if not ret:
             break
         image = cv.flip(image, 1)  # ミラー表示
@@ -120,6 +190,28 @@ def main():
         image.flags.writeable = False
         results = hands.process(image)
         image.flags.writeable = True
+
+
+        # ################# FACE MESH
+        #ret2, image2 = cap.read()
+        faceResults = face.process(debug_image)
+        mp_drawing_styles = mp.solutions.drawing_styles
+
+        if faceResults.multi_face_landmarks is not None:
+            if SHOW_FACE_MASK:
+                for facial_landmarks in faceResults.multi_face_landmarks:
+                    # Border around Face, Eyes, Lips
+                    print('face_landmarks:', facial_landmarks)
+                    mp.solutions.drawing_utils.draw_landmarks(
+                        image=debug_image,
+                        landmark_list=facial_landmarks,
+                        connections=mp_face_mesh.FACEMESH_CONTOURS,
+                        landmark_drawing_spec=mp.solutions.drawing_utils.DrawingSpec(color=(255,0,255)),
+                        connection_drawing_spec=mp_drawing_styles
+                        .get_default_face_mesh_contours_style())
+
+            
+
 
         #  ####################################################################
         if results.multi_hand_landmarks is not None:
@@ -139,46 +231,47 @@ def main():
                 logging_csv(number, mode, pre_processed_landmark_list,
                             pre_processed_point_history_list)
 
-                # ハンドサイン分類
+                # ハンドサイン分類 - Hand Sign Classification 
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                if hand_sign_id == 2:  # 指差しサイン
-                    point_history.append(landmark_list[8])  # 人差指座標
+                # Run a method when a sign is uncountered
+                if hand_sign_id == 0:  # PalmOpenCover
+                    #point_history.append(landmark_list[8])  # 人差指座標
+                    openPalm()
                 else:
                     point_history.append([0, 0])
 
-                # フィンガージェスチャー分類
-                finger_gesture_id = 0
-                point_history_len = len(pre_processed_point_history_list)
-                if point_history_len == (history_length * 2):
-                    finger_gesture_id = point_history_classifier(
-                        pre_processed_point_history_list)
-
-                # 直近検出の中で最多のジェスチャーIDを算出
-                finger_gesture_history.append(finger_gesture_id)
-                most_common_fg_id = Counter(
-                    finger_gesture_history).most_common()
-
                 # 描画
+                    # Boundary Rec on hands
                 debug_image = draw_bounding_rect(use_brect, debug_image, brect)
-                debug_image = draw_landmarks(debug_image, landmark_list)
+
+                # Draw Hand skele points
+                #debug_image = draw_landmarks(debug_image, landmark_list)
                 debug_image = draw_info_text(
                     debug_image,
                     brect,
                     handedness,
-                    keypoint_classifier_labels[hand_sign_id],
-                    point_history_classifier_labels[most_common_fg_id[0][0]],
+                    keypoint_classifier_labels[hand_sign_id]
                 )
         else:
             point_history.append([0, 0])
 
         debug_image = draw_point_history(debug_image, point_history)
-        debug_image = draw_info(debug_image, fps, mode, number)
+        debug_image = draw_info(debug_image, mode, number)
 
         # 画面反映 #############################################################
         cv.imshow('Hand Gesture Recognition', debug_image)
 
     cap.release()
     cv.destroyAllWindows()
+
+
+
+
+
+
+
+
+
 
 
 def select_mode(key, mode):
@@ -492,8 +585,8 @@ def draw_bounding_rect(use_brect, image, brect):
     return image
 
 
-def draw_info_text(image, brect, handedness, hand_sign_text,
-                   finger_gesture_text):
+def draw_info_text(image, brect, handedness, hand_sign_text
+                   ):
     cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                  (0, 0, 0), -1)
 
@@ -502,13 +595,6 @@ def draw_info_text(image, brect, handedness, hand_sign_text,
         info_text = info_text + ':' + hand_sign_text
     cv.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
                cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
-
-    if finger_gesture_text != "":
-        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-                   cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
-        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-                   cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
-                   cv.LINE_AA)
 
     return image
 
@@ -522,11 +608,11 @@ def draw_point_history(image, point_history):
     return image
 
 
-def draw_info(image, fps, mode, number):
-    cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-               1.0, (0, 0, 0), 4, cv.LINE_AA)
-    cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-               1.0, (255, 255, 255), 2, cv.LINE_AA)
+def draw_info(image, mode, number):
+    # cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
+    #            1.0, (0, 0, 0), 4, cv.LINE_AA)
+    # cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
+    #            1.0, (255, 255, 255), 2, cv.LINE_AA)
 
     mode_string = ['Logging Key Point', 'Logging Point History']
     if 1 <= mode <= 2:
@@ -538,6 +624,8 @@ def draw_info(image, fps, mode, number):
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
                        cv.LINE_AA)
     return image
+
+
 
 
 if __name__ == '__main__':

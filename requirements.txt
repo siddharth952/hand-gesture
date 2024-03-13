@@ -1,6 +1,11 @@
-mediapipe == 0.9.1
+mediapipe == 0.9.3.0
 opencv-python == 4.6.0.66
-tensorflow 
+tensorflow  == 2.13.0
 scikit-learn == 1.0.2
 matplotlib == 3.5.1
 protobuf<4,>=3.11
+pyttsx3
+speechrecognition
+pocketsphinx == 5.0.0
+
+# brew install flac
