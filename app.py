@@ -50,11 +50,17 @@ SHOW_FACE_MASK = False
 
 
 def speech_recognition_task():
+    # ### SPEECH
+        # Recognizer - Obj that it going to make it understands which we are saying
+    recognizer = speech_recognition.Recognizer()
+    
+    # ### SPEECH END
+
     while True:
         if SHOW_FACE_MASK:
             print("Speech")
             with speech_recognition.Microphone() as mic:
-                recognizer.adjust_for_ambient_noise(mic, duration=0.5)
+                recognizer.adjust_for_ambient_noise(mic, duration=0.7)
                 audio = recognizer.listen(mic)
                 text = recognizer.recognize_sphinx(audio)
                     
@@ -89,19 +95,6 @@ speech_thread.start()
 def main():
 
     
-
-
-        
-
-    # ### SPEECH
-        # Recognizer - Obj that it going to make it understands which we are saying
-    recognizer = speech_recognition.Recognizer()
-    
-    # ### SPEECH END
-
-
-
-
 
 
     # 引数解析 #################################################################
@@ -201,7 +194,7 @@ def main():
             if SHOW_FACE_MASK:
                 for facial_landmarks in faceResults.multi_face_landmarks:
                     # Border around Face, Eyes, Lips
-                    print('face_landmarks:', facial_landmarks)
+                    #print('face_landmarks:', facial_landmarks)
                     mp.solutions.drawing_utils.draw_landmarks(
                         image=debug_image,
                         landmark_list=facial_landmarks,
